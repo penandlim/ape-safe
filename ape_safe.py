@@ -12,6 +12,7 @@ from brownie.network.account import LocalAccount
 from brownie.network.transaction import TransactionReceipt
 from eth_abi import encode_abi
 from eth_utils import is_address, to_checksum_address
+from eth_utils.conversions import to_hex
 from gnosis.eth import EthereumClient
 from gnosis.safe import Safe, SafeOperation
 from gnosis.safe.multi_send import MultiSend, MultiSendOperation, MultiSendTx
@@ -196,10 +197,17 @@ class ApeSafe(Safe):
         """
         Sign a Safe transaction using Frame. Use this option with hardware wallets.
         """
-        # Requesting accounts triggers a connection prompt
+        eip712_msg = safe_tx.eip712_structured_data
+        # patching data by doing the same as web3._utils.encoding.to_json, since
+        # the default json serializer fails on this type of conversion
+        field = eip712_msg["message"]["data"]
+        if isinstance(field, HexBytes):
+            eip712_msg["message"]["data"] = to_hex(field)
+
         frame = Web3(Web3.HTTPProvider(frame_rpc, {'timeout': 600}))
+        # Requesting accounts triggers a connection prompt
         account = frame.eth.accounts[0]
-        signature = frame.manager.request_blocking('eth_signTypedData_v4', [account, safe_tx.eip712_structured_data])
+        signature = frame.manager.request_blocking('eth_signTypedData_v4', [account, eip712_msg])
         # Convert to a format expected by Gnosis Safe
         v, r, s = signature_split(signature)
         # Ledger doesn't support EIP-155
