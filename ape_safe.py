@@ -324,7 +324,11 @@ class ApeSafe(Safe):
         # Pre-validated signatures are encoded as r=owner, s unused and v=1.
         # https://docs.gnosis.io/safe/docs/contracts_signatures/#pre-validated-signatures
         tx.signatures = b''.join([encode_abi(['address', 'uint'], [str(owner), 0]) + b'\x01' for owner in owners])
-        payload = tx.w3_tx.buildTransaction()
+        payload = tx.w3_tx.buildTransaction({
+            # fake fee data to avoid calling chain (fails on ganache 6)
+            "maxPriorityFeePerGas": 0,
+            "maxFeePerGas": 0,
+        })
         receipt = owners[0].transfer(payload['to'], payload['value'], gas_limit=payload['gas'], data=payload['data'])
 
         if 'ExecutionSuccess' not in receipt.events:
